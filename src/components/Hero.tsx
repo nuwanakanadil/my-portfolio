@@ -42,7 +42,7 @@ export function Hero() {
           </h1>
 
           <p className="text-gray-300 text-xl sm:text-2xl font-medium mb-4">
-            Hi, I’m <span className="text-white font-bold">Nuwanaka Nadil</span> — Software Engineering Undergraduate & Full-Stack Learner.
+            Hi, I’m <span className="text-white font-bold">Nuwanaka Nadil</span> — Software Engineering Undergraduate & Full-Stack Developer.
           </p>
 
           <p className="text-gray-400 text-lg max-w-2xl mb-8 leading-relaxed">

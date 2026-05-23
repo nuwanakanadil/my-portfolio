@@ -2,6 +2,8 @@ import { createServer } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
+import { handlePortfolioAiRequest } from '../api/portfolio-ai.js';
+import { handleContactRequest } from '../api/contact.js';
 
 const serverPort = Number(process.env.PORT || 8787);
 const defaultModel = process.env.OPENAI_MODEL || process.env.VITE_OPENAI_MODEL || 'gpt-4o-mini';
@@ -42,7 +44,6 @@ loadEnvFile(resolve(projectRoot, '.env'));
 
 const openAIApiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
 const openAIModel = process.env.OPENAI_MODEL || process.env.VITE_OPENAI_MODEL || defaultModel;
-const contactInbox = [];
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, { 'Content-Type': 'application/json' });
@@ -320,25 +321,6 @@ function buildLocalFallback(mode, userMessage) {
   ].join('\n');
 }
 
-function normalizeContactField(value) {
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  return value.trim();
-}
-
-function buildContactResponse(submission) {
-  return [
-    'Thanks for reaching out. The message was received by the local backend.',
-    '',
-    `Name: ${submission.name || 'Not provided'}`,
-    `Email: ${submission.email || 'Not provided'}`,
-    '',
-    submission.message,
-  ].join('\n');
-}
-
 async function callOpenAI(mode, userMessage) {
   const modeGuidance = {
     askAboutMe: 'Focus on Nuwanaka\'s profile, skills, learning journey, and contact links. Be honest and student-focused.',
@@ -413,45 +395,6 @@ async function handleAssistantRequest(request, response) {
   }
 }
 
-async function handleContactRequest(request, response) {
-  try {
-    const body = await readRequestBody(request);
-    const payload = JSON.parse(body || '{}');
-    const name = normalizeContactField(payload.name);
-    const email = normalizeContactField(payload.email);
-    const message = normalizeContactField(payload.message);
-
-    if (!message) {
-      sendJson(response, 400, { error: 'Message is required.' });
-      return;
-    }
-
-    const submission = {
-      id: Date.now(),
-      name,
-      email,
-      message,
-      receivedAt: new Date().toISOString(),
-    };
-
-    contactInbox.unshift(submission);
-    contactInbox.length = Math.min(contactInbox.length, 25);
-
-    console.log('[assistant-server] contact submission received', submission);
-
-    sendJson(response, 200, {
-      ok: true,
-      content: buildContactResponse(submission),
-      submissionId: submission.id,
-    });
-  } catch (error) {
-    sendJson(response, 500, {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Unknown server error.',
-    });
-  }
-}
-
 const server = createServer(async (request, response) => {
   if (request.method === 'GET' && request.url === '/api/assistant/health') {
     sendJson(response, 200, {
@@ -459,6 +402,11 @@ const server = createServer(async (request, response) => {
       provider: openAIApiKey ? 'openai' : 'local-fallback',
       model: openAIModel,
     });
+    return;
+  }
+
+  if (request.method === 'POST' && request.url === '/api/portfolio-ai') {
+    await handlePortfolioAiRequest(request, response);
     return;
   }
 

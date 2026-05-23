@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import net from 'node:net';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
 const projectRoot = resolve(process.cwd());
-const backendPort = 8787;
+const defaultBackendPort = 8787;
 
 function loadEnvFile(filePath) {
   if (!existsSync(filePath)) {
@@ -39,6 +40,31 @@ function loadEnvFile(filePath) {
 loadEnvFile(resolve(projectRoot, '.env.local'));
 loadEnvFile(resolve(projectRoot, '.env'));
 
+async function findFreePort(startPort) {
+  for (let port = startPort; port < startPort + 20; port += 1) {
+    const isFree = await new Promise((resolvePort) => {
+      const tester = net.createServer();
+
+      tester.once('error', () => resolvePort(false));
+      tester.once('listening', () => {
+        tester.close(() => resolvePort(true));
+      });
+
+      tester.listen(port);
+    });
+
+    if (isFree) {
+      return port;
+    }
+  }
+
+  return startPort;
+}
+
+const backendPort = await findFreePort(Number(process.env.DEV_API_PORT || defaultBackendPort));
+process.env.DEV_API_PORT = String(backendPort);
+console.log(`[dev] using API port ${backendPort}`);
+
 const backend = spawn(process.execPath, [resolve(projectRoot, 'server/assistant-server.mjs')], {
   stdio: 'inherit',
   env: {
@@ -55,12 +81,14 @@ const vite = process.platform === 'win32'
     stdio: 'inherit',
     env: {
       ...process.env,
+      DEV_API_PORT: String(backendPort),
     },
   })
   : spawn(viteBinary, ['--port', '5173'], {
   stdio: 'inherit',
   env: {
     ...process.env,
+    DEV_API_PORT: String(backendPort),
   },
   });
 

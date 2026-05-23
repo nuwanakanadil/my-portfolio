@@ -7,8 +7,7 @@ import {
   Brain,
   Briefcase,
   Code2,
-  Github,
-  Linkedin,
+  ExternalLink,
   MapPin,
   Send,
   Sparkles,
@@ -25,12 +24,9 @@ type ChatMessage = {
   content: string;
 };
 
-type AssistantHealth = {
-  provider: 'openai' | 'local-fallback';
-  model: string;
+type PortfolioAiResponse = {
+  answer?: string;
 };
-
-const fallbackModelName = (import.meta.env.VITE_OPENAI_MODEL as string | undefined) ?? 'gpt-4o-mini';
 
 const portfolioData = {
   profile: {
@@ -41,13 +37,6 @@ const portfolioData = {
     location: 'Gampaha, Sri Lanka',
     learning: ['Laravel', 'Vue.js'],
     focusAreas: ['Web Development', 'Software Engineering', 'Backend Systems', 'Full-stack Development'],
-  },
-  skills: {
-    frontend: ['HTML', 'CSS', 'JavaScript', 'TypeScript', 'React', 'Vue.js'],
-    backend: ['Java', 'PHP', 'Laravel', 'Backend basics', 'MERN stack learning'],
-    database: ['MySQL', 'CRUD', 'Schema design'],
-    tools: ['Git', 'GitHub', 'VS Code'],
-    learning: ['Laravel', 'Vue.js', 'Full-stack patterns', 'APIs'],
   },
   links: {
     github: 'https://github.com/nuwanakanadil',
@@ -114,35 +103,18 @@ const examplePrompts = [
   'Match his skills to a web developer role.',
 ];
 
-const keywordGroups = {
-  backend: ['backend', 'server', 'api', 'php', 'laravel', 'mysql', 'database', 'system', 'auction'],
-  typescript: ['typescript', 'ts', 'typed'],
-  javascript: ['javascript', 'js', 'frontend', 'dom', 'browser'],
-  internship: ['internship', 'junior', 'entry level', 'trainee', 'graduate'],
-  contact: ['contact', 'github', 'linkedin', 'reach', 'connect'],
-  skills: ['skill', 'skills', 'stack', 'technology', 'technologies', 'can he do'],
-  job: ['job description', 'requirements', 'responsibilities', 'qualifications', 'role', 'position'],
-};
-
 const initialMessages: ChatMessage[] = [
   {
     id: 1,
     role: 'assistant',
-    content:
-      "Hi, I am the AI Portfolio Assistant. Ask me about Nuwanaka's skills, projects, internship fit, or paste a job description for a quick match analysis.",
+    content: "Hi, I am the AI Portfolio Assistant. Ask me about Nuwanaka's skills, projects, internship fit, or paste a job description for a quick match analysis.",
   },
 ];
 
-function normalizeText(text: string) {
-  return text.toLowerCase().trim();
-}
+const friendlyErrorMessage = 'Sorry, I could not reach the AI assistant right now. Please try again in a moment.';
 
-function createListBlock(title: string, items: string[]) {
-  return `${title}:\n- ${items.join('\n- ')}`;
-}
-
-async function fetchAssistantResponse(mode: AssistantMode, userMessage: string) {
-  const response = await fetch('/api/assistant', {
+async function fetchPortfolioAiResponse(mode: AssistantMode, userMessage: string) {
+  const response = await fetch('/api/portfolio-ai', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -154,208 +126,43 @@ async function fetchAssistantResponse(mode: AssistantMode, userMessage: string) 
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || 'OpenAI request failed.');
+    const errorData = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(errorData.error || 'The AI assistant is temporarily unavailable.');
   }
 
-  const data = (await response.json()) as { content?: string };
-  if (typeof data.content === 'string' && data.content.trim().length > 0) {
-    return data.content.trim();
+  const data = (await response.json()) as PortfolioAiResponse;
+  const answer = typeof data.answer === 'string' ? data.answer.trim() : '';
+
+  if (!answer) {
+    throw new Error('The AI assistant returned an empty response.');
   }
 
-  return buildResponse(mode, userMessage);
+  return answer;
 }
 
-function getSkillMatches(text: string) {
-  const matches: string[] = [];
-
-  if (['html', 'css', 'react', 'vue', 'frontend', 'ui', 'interface'].some((keyword) => text.includes(keyword))) {
-    matches.push('Frontend basics, React, Vue.js, HTML, CSS');
+async function submitPortfolioMessage(
+  activeMode: AssistantMode,
+  trimmedMessage: string,
+  assistantMessageId: number,
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+  setIsThinking: React.Dispatch<React.SetStateAction<boolean>>,
+) {
+  try {
+    const assistantReply = await fetchPortfolioAiResponse(activeMode, trimmedMessage);
+    setMessages((current) => [...current, { id: assistantMessageId, role: 'assistant', content: assistantReply }]);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown API error.';
+    setMessages((current) => [
+      ...current,
+      {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: `${friendlyErrorMessage}\n\nDetails: ${errorMessage}`,
+      },
+    ]);
+  } finally {
+    setIsThinking(false);
   }
-
-  if (['php', 'laravel', 'backend', 'server', 'api', 'mysql', 'database', 'system'].some((keyword) => text.includes(keyword))) {
-    matches.push('PHP, Laravel learning, backend fundamentals, MySQL');
-  }
-
-  if (['javascript', 'typescript', 'js', 'ts'].some((keyword) => text.includes(keyword))) {
-    matches.push('JavaScript, TypeScript, and project-based web development');
-  }
-
-  if (['git', 'github', 'vs code', 'version control'].some((keyword) => text.includes(keyword))) {
-    matches.push('Git, GitHub, and VS Code workflow');
-  }
-
-  if (['software engineering', 'engineering', 'problem solving'].some((keyword) => text.includes(keyword))) {
-    matches.push('Software engineering fundamentals and project-driven learning');
-  }
-
-  return [...new Set(matches)];
-}
-
-function getProjectRecommendation(text: string) {
-  const normalized = normalizeText(text);
-
-  if (['backend', 'full stack', 'full-stack', 'database', 'system', 'auction', 'php', 'mysql', 'api'].some((keyword) => normalized.includes(keyword))) {
-    return {
-      title: 'BidMaster',
-      reason: 'It is the strongest practical web app project for backend logic, database usage, authentication, and system thinking.',
-    };
-  }
-
-  if (['typescript', 'typed', 'type safety', 'pdf'].some((keyword) => normalized.includes(keyword))) {
-    return {
-      title: 'PDF-Site',
-      reason: 'It is the cleanest TypeScript-focused project to review first for typed web development practice.',
-    };
-  }
-
-  if (['experiment', 'learning', 'demo', 'javascript', 'frontend', 'dom'].some((keyword) => normalized.includes(keyword))) {
-    return {
-      title: '2YS2',
-      reason: 'It is the best starting point for JavaScript practice and browser-side implementation work.',
-    };
-  }
-
-  return {
-    title: 'BidMaster',
-    reason: 'It is the best overall first project because it demonstrates practical backend and web application skills.',
-  };
-}
-
-function analyzeJobDescription(text: string) {
-  const normalized = normalizeText(text);
-  const matchedSkills = getSkillMatches(normalized);
-  const relevantProjects: string[] = [];
-
-  if (normalized.includes('backend') || normalized.includes('full stack') || normalized.includes('full-stack') || normalized.includes('database') || normalized.includes('php') || normalized.includes('mysql')) {
-    relevantProjects.push('BidMaster');
-  }
-  if (normalized.includes('typescript') || normalized.includes('typed') || normalized.includes('web')) {
-    relevantProjects.push('PDF-Site');
-  }
-  if (normalized.includes('javascript') || normalized.includes('frontend') || normalized.includes('react') || normalized.includes('vue')) {
-    relevantProjects.push('2YS2');
-  }
-
-  if (relevantProjects.length === 0) {
-    relevantProjects.push('BidMaster');
-  }
-
-  const learningAreas = portfolioData.skills.learning.filter((item) => {
-    const keyword = normalizeText(item);
-    return normalized.includes(keyword) || normalized.includes('full stack') || normalized.includes('backend') || normalized.includes('frontend');
-  });
-
-  const projectChoice = getProjectRecommendation(text);
-
-  return [
-    'I compared the role text with the portfolio data.',
-    '',
-    createListBlock('Matching skills', matchedSkills.length > 0 ? matchedSkills : ['Frontend basics, backend fundamentals, and project-based learning']),
-    '',
-    createListBlock('Relevant projects', relevantProjects.map((project) => {
-      const matchedProject = portfolioData.projects.find((item) => item.title === project);
-      return matchedProject ? `${matchedProject.title} - ${matchedProject.meaning}` : project;
-    })),
-    '',
-    createListBlock('Areas currently learning', learningAreas.length > 0 ? learningAreas : portfolioData.skills.learning),
-    '',
-    `Suggested project to view first: ${projectChoice.title}`,
-    `Why: ${projectChoice.reason}`,
-    '',
-    'Honest read: Nuwanaka is a good match for internship or junior web development opportunities where he can keep learning while contributing to practical frontend and backend tasks.',
-  ].join('\n');
-}
-
-function buildResponse(mode: AssistantMode, userMessage: string) {
-  const normalized = normalizeText(userMessage);
-
-  if (keywordGroups.contact.some((keyword) => normalized.includes(keyword))) {
-    return [
-      'Here are the main contact links from the portfolio:',
-      `GitHub: ${portfolioData.links.github}`,
-      `LinkedIn: ${portfolioData.links.linkedin}`,
-      '',
-      'Use GitHub to review projects and LinkedIn for professional contact.',
-    ].join('\n');
-  }
-
-  if (normalized.includes('internship') || normalized.includes('junior developer') || normalized.includes('job match')) {
-    return 'Nuwanaka is suitable for internship or junior developer opportunities where he can continue learning while contributing to web development tasks. His strengths include software engineering fundamentals, web development practice, GitHub projects, and current learning in Laravel and Vue.js.';
-  }
-
-  if (mode === 'jobMatchHelper' || keywordGroups.job.some((keyword) => normalized.includes(keyword))) {
-    return analyzeJobDescription(userMessage);
-  }
-
-  if (keywordGroups.skills.some((keyword) => normalized.includes(keyword))) {
-    return [
-      createListBlock('Frontend', portfolioData.skills.frontend),
-      '',
-      createListBlock('Backend', portfolioData.skills.backend),
-      '',
-      createListBlock('Database', portfolioData.skills.database),
-      '',
-      createListBlock('Tools', portfolioData.skills.tools),
-      '',
-      createListBlock('Currently learning', portfolioData.skills.learning),
-    ].join('\n');
-  }
-
-  if (mode === 'projectRecommender' || normalized.includes('project') || normalized.includes('view first') || normalized.includes('show first')) {
-    const recommendation = getProjectRecommendation(userMessage);
-    const project = portfolioData.projects.find((item) => item.title === recommendation.title);
-
-    return [
-      `I recommend starting with ${recommendation.title}.`,
-      `Why: ${recommendation.reason}`,
-      project ? `Tech: ${project.tech}` : '',
-      project ? `Portfolio meaning: ${project.meaning}` : '',
-    ].filter(Boolean).join('\n');
-  }
-
-  if (normalized.includes('backend') || normalized.includes('laravel') || normalized.includes('mysql') || normalized.includes('php') || normalized.includes('api')) {
-    return [
-      'Based on the backend focus, I recommend viewing BidMaster first.',
-      'It shows practical web application logic, database usage, and system-building skills.',
-      '',
-      'Relevant backend skills: PHP, Laravel learning, MySQL, backend fundamentals, and project structure.',
-    ].join('\n');
-  }
-
-  if (mode === 'askAboutMe' || normalized.includes('about') || normalized.includes('who is') || normalized.includes('introduce')) {
-    return [
-      `${portfolioData.profile.name} is a ${portfolioData.profile.headline} at ${portfolioData.profile.university}.`,
-      `${portfolioData.profile.roleSummary}.`,
-      `Location: ${portfolioData.profile.location}`,
-      `Current focus: ${portfolioData.profile.focusAreas.join(', ')}.`,
-      `Currently learning: ${portfolioData.profile.learning.join(' and ')}.`,
-    ].join('\n');
-  }
-
-  if (normalized.includes('typescript')) {
-    const recommendation = getProjectRecommendation(userMessage);
-    return [
-      'TypeScript is a good signal to look at the typed projects first.',
-      `I recommend ${recommendation.title} because it highlights TypeScript practice and web development structure.`,
-      'If you want a second view, demo is also useful for learning experiments and iteration.',
-    ].join('\n');
-  }
-
-  if (normalized.includes('java') || normalized.includes('backend basics')) {
-    return [
-      'Java is part of the foundation here, especially for software engineering practice and backend thinking.',
-      'The strongest practical web-app proof still comes from BidMaster, while the learning path also includes Laravel, Vue.js, PHP, and MySQL.',
-    ].join('\n');
-  }
-
-  const recommendation = getProjectRecommendation(userMessage);
-
-  return [
-    'I can help with profile questions, project recommendations, and job match checks.',
-    `A strong default starting point is ${recommendation.title}.`,
-    `Reason: ${recommendation.reason}`,
-  ].join('\n');
 }
 
 export function AIPortfolioAssistant() {
@@ -364,7 +171,6 @@ export function AIPortfolioAssistant() {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [messageId, setMessageId] = useState(2);
-  const [assistantHealth, setAssistantHealth] = useState<AssistantHealth>({ provider: 'local-fallback', model: fallbackModelName });
   const endRef = useRef<HTMLDivElement | null>(null);
   const timerRef = useRef<number | null>(null);
 
@@ -373,22 +179,9 @@ export function AIPortfolioAssistant() {
   }, [messages, isThinking]);
 
   useEffect(() => {
-    fetch('/api/assistant/health')
-      .then((response) => response.json())
-      .then((data: Partial<AssistantHealth>) => {
-        if (data.provider && data.model) {
-          setAssistantHealth({ provider: data.provider, model: data.model });
-        }
-      })
-      .catch(() => {
-        setAssistantHealth({ provider: 'local-fallback', model: fallbackModelName });
-      });
-  }, []);
-
-  useEffect(() => {
     return () => {
       if (timerRef.current) {
-        window.clearTimeout(timerRef.current);
+        globalThis.clearTimeout(timerRef.current);
       }
     };
   }, []);
@@ -411,28 +204,9 @@ export function AIPortfolioAssistant() {
     setInput('');
     setIsThinking(true);
 
-    // Upgrade path: replace the local response engine with a backend or LLM API call.
-    timerRef.current = window.setTimeout(() => {
-      void fetchAssistantResponse(activeMode, trimmedMessage)
-        .then((assistantReply) => {
-          setMessages((current) => [...current, { id: assistantMessageId, role: 'assistant', content: assistantReply }]);
-        })
-        .catch((error: unknown) => {
-          const fallbackReply = buildResponse(activeMode, trimmedMessage);
-          const errorMessage = error instanceof Error ? error.message : 'Unknown API error.';
-          setMessages((current) => [
-            ...current,
-            {
-              id: assistantMessageId,
-              role: 'assistant',
-              content: `${fallbackReply}\n\nAPI note: ${errorMessage}`,
-            },
-          ]);
-        })
-        .finally(() => {
-          setIsThinking(false);
-        });
-    }, 850);
+    timerRef.current = globalThis.setTimeout(() => {
+      void submitPortfolioMessage(activeMode, trimmedMessage, assistantMessageId, setMessages, setIsThinking);
+    }, 450);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -470,11 +244,11 @@ export function AIPortfolioAssistant() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-2xl">
                 <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-mono text-primary">
-                  <Sparkles size={15} /> Powered by AI
+                  <Sparkles size={15} /> Powered by OpenRouter
                 </div>
                 <h3 className="text-3xl md:text-4xl font-bold text-white">Ask AI to explore my skills, projects, and developer journey.</h3>
                 <p className="mt-3 text-gray-400 leading-7 max-w-2xl">
-                  Answers are based on my portfolio, GitHub projects, and learning journey. The assistant now calls a backend API route, so the key stays off the frontend.
+                  Answers are based on my portfolio, GitHub projects, and learning journey. The assistant calls a backend API route, so the key stays off the frontend.
                 </p>
               </div>
 
@@ -484,13 +258,13 @@ export function AIPortfolioAssistant() {
                   <span className="text-xs font-mono uppercase tracking-[0.24em] text-gray-500">assistant panel</span>
                 </div>
                 <div className="flex items-center gap-2 text-primary font-mono text-xs uppercase tracking-[0.28em]">
-                  <Terminal size={14} /> local ai mode
+                  <Terminal size={14} /> openrouter api
                 </div>
                 <p className="mt-2 leading-6">
-                  Smart responses are generated from portfolio data, keyword matches, and the selected assistant mode. If the backend cannot reach the model, it falls back safely.
+                  Smart responses are generated by the serverless API using only portfolio data. The browser never sees the OpenRouter key.
                 </p>
                 <p className="mt-3 text-xs font-mono text-gray-500">
-                  Status: {assistantHealth.provider === 'openai' ? `connected to ${assistantHealth.model}` : 'local fallback active'}
+                  Status: connected to /api/portfolio-ai
                 </p>
               </div>
             </div>
@@ -656,11 +430,11 @@ export function AIPortfolioAssistant() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <a href={portfolioData.links.github} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white transition-colors hover:border-primary/40">
-                        <span className="inline-flex items-center gap-2"><Github size={16} className="text-primary" /> GitHub</span>
+                        <span className="inline-flex items-center gap-2"><ExternalLink size={16} className="text-primary" /> GitHub</span>
                         <ArrowUpRight size={16} className="text-gray-500" />
                       </a>
                       <a href={portfolioData.links.linkedin} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white transition-colors hover:border-primary/40">
-                        <span className="inline-flex items-center gap-2"><Linkedin size={16} className="text-primary" /> LinkedIn</span>
+                        <span className="inline-flex items-center gap-2"><ExternalLink size={16} className="text-primary" /> LinkedIn</span>
                         <ArrowUpRight size={16} className="text-gray-500" />
                       </a>
                     </div>

@@ -4,69 +4,80 @@ import { SectionHeading } from './SectionHeading';
 import { Mail, ExternalLink, Code2, Send, MessageSquare } from 'lucide-react';
 import { MacWindowControls } from './MacWindowControls';
 
-const initialFormState = {
-  name: '',
-  email: '',
-  message: '',
-};
-
 export function Contact() {
-  const [formData, setFormData] = useState(initialFormState);
-  const [statusMessage, setStatusMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [status, setStatus] = useState('');
+
+  let statusClass = 'text-gray-400';
+  if (status.startsWith('Message sent')) {
+    statusClass = 'text-emerald-400';
+  } else if (status.startsWith('Please') || status.startsWith('Unable')) {
+    statusClass = 'text-red-400';
+  }
 
   const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;
 
-    setFormData((current) => ({
-      ...current,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const trimmedName = formData.name.trim();
-    const trimmedEmail = formData.email.trim();
-    const trimmedMessage = formData.message.trim();
-
-    if (!trimmedMessage) {
-      setStatusMessage('Please add a message before sending.');
+    if (name === 'name') {
+      setName(value);
       return;
     }
 
-    setIsSubmitting(true);
-    setStatusMessage('Sending message...');
+    if (name === 'email') {
+      setEmail(value);
+      return;
+    }
 
-    fetch('/api/contact', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: trimmedName,
-        email: trimmedEmail,
-        message: trimmedMessage,
-      }),
-    })
-      .then(async (response) => {
-        const data = await response.json().catch(() => ({}));
+    setMessage(value);
+  };
 
-        if (!response.ok) {
-          throw new Error(data.error || 'Unable to send message right now.');
-        }
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
 
-        setFormData(initialFormState);
-        setStatusMessage('Message sent to the backend. I will see it on the server side.');
-      })
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : 'Unable to send message right now.';
-        setStatusMessage(message);
-      })
-      .finally(() => {
-        setIsSubmitting(false);
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedMessage = message.trim();
+
+    if (!trimmedName || !trimmedEmail || !trimmedMessage) {
+      setStatus('Please fill out your name, email, and message.');
+      return;
+    }
+
+    setIsSending(true);
+    setStatus('Sending message...');
+
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: trimmedName,
+          email: trimmedEmail,
+          message: trimmedMessage,
+        }),
       });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Unable to send message right now.');
+      }
+
+      setName('');
+      setEmail('');
+      setMessage('');
+      setStatus('Message sent successfully. Check your inbox for a confirmation email.');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unable to send message right now.';
+      setStatus(errorMessage);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -77,8 +88,8 @@ export function Contact() {
         <div className="grid lg:grid-cols-[0.9fr_1.1fr] gap-12">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <h3 className="text-4xl font-bold text-white mb-6">Open to internships, projects, and learning opportunities.</h3>
-            <p className="text-gray-400 text-lg mb-10 leading-relaxed">
-              The best way to contact me right now is through LinkedIn or GitHub. You can also connect this form later to EmailJS, Formspree, Netlify Forms, or your own backend.
+              <p className="text-gray-400 text-lg mb-10 leading-relaxed">
+            Use this form to send me a message directly. I receive it in my inbox and can reply to your email address.
             </p>
 
             <div className="space-y-5">
@@ -126,25 +137,25 @@ export function Contact() {
               <div className="grid sm:grid-cols-2 gap-5">
                 <div>
                   <label htmlFor="name" className="block text-sm font-mono text-gray-400 mb-2">Name</label>
-                  <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="Your name" />
+                  <input type="text" id="name" name="name" value={name} onChange={handleChange} required className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="Your name" />
                 </div>
                 <div>
                   <label htmlFor="email" className="block text-sm font-mono text-gray-400 mb-2">Email</label>
-                  <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="your@email.com" />
+                  <input type="email" id="email" name="email" value={email} onChange={handleChange} required className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="your@email.com" />
                 </div>
               </div>
 
               <div>
                 <label htmlFor="message" className="block text-sm font-mono text-gray-400 mb-2">Message</label>
-                <textarea id="message" name="message" rows={6} value={formData.message} onChange={handleChange} className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none" placeholder="Hello Nuwanaka, I’d like to talk about..." />
+                <textarea id="message" name="message" rows={6} value={message} onChange={handleChange} required className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none" placeholder="Hello Nuwanaka, I’d like to talk about..." />
               </div>
 
-              <p className="min-h-6 text-sm text-gray-400" aria-live="polite">
-                {statusMessage}
+              <p className={`min-h-6 text-sm ${statusClass}`} aria-live="polite">
+                {status}
               </p>
 
-              <button type="submit" disabled={isSubmitting} className="w-full py-4 rounded-xl bg-primary text-white font-bold hover:bg-primaryHover transition-all hover-glow flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70">
-                {isSubmitting ? 'Sending...' : 'Send Message'} <Send size={18} />
+              <button type="submit" disabled={isSending} className="w-full py-4 rounded-xl bg-primary text-white font-bold hover:bg-primaryHover transition-all hover-glow flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70">
+                {isSending ? 'Sending...' : 'Send Message'} <Send size={18} />
               </button>
             </form>
           </motion.div>
