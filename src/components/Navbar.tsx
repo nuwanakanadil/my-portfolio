@@ -48,7 +48,11 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
         <a href="#home" className="flex items-center gap-2 group">
           <div className="w-10 h-10 rounded-xl bg-surface border border-white/10 flex items-center justify-center group-hover:border-primary/50 transition-colors">
-            <span className="font-mono font-bold text-primary text-xl">NN</span>
+            <img
+              src="/my-photo.jpg"
+              alt="Nuwanaka Nadil"
+              className="h-full w-full rounded-xl object-cover object-center"
+            />
           </div>
           <span className="font-bold text-lg hidden sm:block group-hover:text-primary transition-colors">
             Nuwanaka Nadil

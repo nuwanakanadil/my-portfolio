@@ -1,0 +1,20 @@
+{
+  "bidmaster": {
+    "displayName": "BidMaster",
+    "description": "A bidding platform demo with real-time updates and user management.",
+    "subtitle": "Realtime bidding app",
+    "category": "Web App",
+    "techStack": [],
+    "images": ["/projects/bidmaster/1.jpg", "/projects/bidmaster/2.jpg", "/projects/bidmaster/3.jpg", "/projects/bidmaster/4.jpg", "/projects/bidmaster/5.jpg", "/projects/bidmaster/6.jpg", "/projects/bidmaster/7.jpg", "/projects/bidmaster/8.jpg", "/projects/bidmaster/9.jpg", "/projects/bidmaster/10.jpg", "/projects/bidmaster/11.jpg", "/projects/bidmaster/12.jpg", "/projects/bidmaster/13.jpg", "/projects/bidmaster/14.jpg"],
+    "featured": true
+  },
+  "demo": {
+    "displayName": "ReWear",
+    "description": "A clothes swapping platform that allows users to exchange their gently used clothing items with others in their community, promoting sustainability and reducing waste.",
+    "subtitle": "Clothes swapping platform",
+    "category": "Web App",
+    "techStack": ["TypeScript", "React", "Node.js", "Express", "MongoDB"],
+    "images": ["/projects/demo/1.jpg", "/projects/demo/2.jpg", "/projects/demo/3.jpg", "/projects/demo/4.jpg", "/projects/demo/5.jpg", "/projects/demo/6.jpg", "/projects/demo/7.jpg", "/projects/demo/8.jpg", "/projects/demo/9.jpg", "/projects/demo/10.jpg"],
+    "featured": true
+  }
+}

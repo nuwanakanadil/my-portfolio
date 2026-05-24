@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import process from 'node:process';
 import { handlePortfolioAiRequest } from '../api/portfolio-ai.js';
 import { handleContactRequest } from '../api/contact.js';
+import { handleGitHubProjectsRequest } from '../api/github-projects.js';
 
 const serverPort = Number(process.env.PORT || 8787);
 const defaultModel = process.env.OPENAI_MODEL || process.env.VITE_OPENAI_MODEL || 'gpt-4o-mini';
@@ -90,11 +91,16 @@ function buildPortfolioContext() {
     createListBlock('Database skills', ['MySQL', 'CRUD', 'Schema design']),
     createListBlock('Tools', ['Git', 'GitHub', 'VS Code']),
     createListBlock('Projects', [
-      'BidMaster - Best project for showing practical backend logic, database usage, and system-building skills.',
-      'PDF-Site - Useful for showing TypeScript and structured frontend development practice.',
-      '2YS2 - Helpful for showing JavaScript learning and browser-based implementation practice.',
-      'demo - Good for showing experimentation and learning through small builds.',
+      'Portfolio Website - Public frontend portfolio with AI assistant integration, GitHub project loading, and contact form.',
+      'AI Portfolio Assistant - Private AI integration project for exploring the portfolio.',
+      'Student Management System - Private academic full-stack project for CRUD and database practice.',
+      'BidMaster - Public full-stack academic project, online auction system, PHP, MySQL, HTML, CSS, JavaScript.',
+      'PDF-Site - Public web app focused on PDF-related web features and TypeScript practice.',
+      '2YS2 - Public JavaScript learning project for frontend and scripting practice.',
+      'Demo - Public TypeScript experiment for learning and iteration.',
     ]),
+    'Selected public GitHub repositories are loaded automatically in the Projects section.',
+    'Manual and private projects stay curated separately with screenshots and descriptions.',
   ].join('\n\n');
 }
 
@@ -159,17 +165,14 @@ function hasAnyKeyword(text, keywords) {
 }
 
 function buildProjectList(projectNames) {
-  return projectNames.map((project) => {
-    if (project === 'BidMaster') {
-      return 'BidMaster - Best project for showing practical backend logic, database usage, and system-building skills.';
-    }
+  const projectDetails = {
+    BidMaster: 'BidMaster - Public full-stack academic project, online auction system, PHP, MySQL, HTML, CSS, JavaScript.',
+    'PDF-Site': 'PDF-Site - Public web app focused on PDF-related web features and TypeScript practice.',
+    '2YS2': '2YS2 - Public JavaScript learning project for frontend and scripting practice.',
+    Demo: 'Demo - Public TypeScript experiment for learning and iteration.',
+  };
 
-    if (project === 'PDF-Site') {
-      return 'PDF-Site - Useful for showing TypeScript and structured frontend development practice.';
-    }
-
-    return '2YS2 - Helpful for showing JavaScript learning and browser-based implementation practice.';
-  });
+  return projectNames.map((project) => projectDetails[project] || `${project} - Project details are available in the portfolio.`);
 }
 
 function buildSkillsFallback() {
@@ -309,6 +312,7 @@ function buildLocalFallback(mode, userMessage) {
       'Nuwanaka Nadil is a Software Engineering Undergraduate at SLIIT.',
       'He is focused on web development, software engineering, backend systems, and full-stack development.',
       'Currently learning: Laravel and Vue.js.',
+      'Some projects are private, but their features, tech stack, and screenshots are shown in the portfolio. Code can be discussed on request.',
     ].join('\n');
   }
 
@@ -333,7 +337,8 @@ async function callOpenAI(mode, userMessage) {
     'Only use the portfolio data provided here. Do not invent experience, companies, or achievements.',
     modeGuidance[mode],
     'Keep responses concise, professional, student-focused, and helpful.',
-    'When recommending projects, prefer BidMaster for backend, database, system, and auction-related questions; PDF-Site for TypeScript; and 2YS2 for JavaScript or frontend practice.',
+    'Some projects are private, but their features, tech stack, and screenshots are shown in the portfolio. Code can be discussed on request.',
+    'When recommending projects, prefer BidMaster for backend, database, system, and auction-related questions; Student Management System for CRUD and academic management questions; PDF-Site for TypeScript; 2YS2 for JavaScript or frontend practice; Portfolio Website for frontend presentation; and AI Portfolio Assistant for AI or chat-style portfolio questions.',
     'If asked about internships or junior roles, be confident but honest.',
     'If contact details are requested, return GitHub and LinkedIn links.',
     'Portfolio context follows:',
@@ -407,6 +412,11 @@ const server = createServer(async (request, response) => {
 
   if (request.method === 'POST' && request.url === '/api/portfolio-ai') {
     await handlePortfolioAiRequest(request, response);
+    return;
+  }
+
+  if (request.method === 'GET' && request.url && request.url.startsWith('/api/github-projects')) {
+    await handleGitHubProjectsRequest(request, response);
     return;
   }
 

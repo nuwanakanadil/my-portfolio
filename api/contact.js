@@ -70,6 +70,15 @@ function buildEmailHtml({ accent, badge, title, intro, rows, messageTitle, messa
               </div>
 
               <p style="margin: 22px 0 0; font-size: 13px; line-height: 1.7; color: #6b7280;">${escapeHtml(footer)}</p>
+
+              <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #e5e7eb; display: flex; align-items: center; gap: 14px;">
+                <div style="width: 44px; height: 44px; border-radius: 999px; background: #111827; display: flex; align-items: center; justify-content: center; color: ${accent}; font-weight: 700; font-size: 18px;">N</div>
+                <div>
+                  <div style="font-size: 16px; font-weight: 700; color: #111827;">Nuwanaka Nadil</div>
+                  <div style="font-size: 13px; color: #6b7280;">Software Engineering Undergraduate</div>
+                  <div style="margin-top: 4px; font-size: 13px; color: ${accent}; font-weight: 700;">nuwanakanadil123@gmail.com</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

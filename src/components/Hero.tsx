@@ -93,8 +93,12 @@ export function Hero() {
                 <div className="relative mb-6">
                   <div className="absolute inset-0 rounded-3xl bg-primary blur-2xl opacity-30" />
                   <div className="relative h-44 w-44 rounded-3xl bg-gradient-to-br from-primary to-amber-500 p-[2px] rotate-3">
-                    <div className="h-full w-full rounded-[1.35rem] bg-background flex items-center justify-center -rotate-3">
-                      <span className="text-7xl font-mono font-black text-primary">NN</span>
+                    <div className="h-full w-full rounded-[1.35rem] bg-background overflow-hidden -rotate-3">
+                      <img
+                        src="/my-photo.jpg"
+                        alt="Nuwanaka Nadil"
+                        className="h-full w-full object-cover object-center"
+                      />
                     </div>
                   </div>
                 </div>
