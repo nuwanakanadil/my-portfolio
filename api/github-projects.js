@@ -1,40 +1,83 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const CONFIG_ALLOWLIST_PATH = path.join(process.cwd(), 'config', 'github-allowlist.json');
 const CONFIG_OVERRIDES_PATH = path.join(process.cwd(), 'config', 'github-repo-overrides.json');
 const GITHUB_REPOS_URL = 'https://api.github.com/users/nuwanakanadil/repos?sort=updated&per_page=100';
 const DEFAULT_ALLOWED_REPO_NAMES = ['bidmaster', 'pdf-site', '2ys2', 'demo'];
+const FALLBACK_REPOSITORIES = {
+  bidmaster: {
+    description: 'A bidding platform demo with real-time updates and user management.',
+    subtitle: 'Realtime bidding app',
+    category: 'Web App',
+    language: 'PHP',
+    techStack: ['PHP', 'MySQL', 'JavaScript', 'HTML', 'CSS'],
+  },
+  'pdf-site': {
+    description: 'A PDF-focused project for browser-based document handling and frontend practice.',
+    subtitle: 'PDF site demo',
+    category: 'Web App',
+    language: 'TypeScript',
+    techStack: ['TypeScript', 'React', 'HTML', 'CSS'],
+  },
+  '2ys2': {
+    description: 'A JavaScript learning project built for frontend and scripting practice.',
+    subtitle: 'JavaScript practice project',
+    category: 'Learning Project',
+    language: 'JavaScript',
+    techStack: ['JavaScript', 'HTML', 'CSS'],
+  },
+  demo: {
+    description: 'A TypeScript experiment project for iterative frontend learning.',
+    subtitle: 'Experiment demo',
+    category: 'Web App',
+    language: 'TypeScript',
+    techStack: ['TypeScript', 'React', 'Node.js'],
+  },
+};
+
+function parseJsonFile(filePath, fallbackValue) {
+  if (!fs.existsSync(filePath)) {
+    return fallbackValue;
+  }
+
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return raw ? JSON.parse(raw) : fallbackValue;
+  } catch (error) {
+    if (error instanceof Error) {
+      return fallbackValue;
+    }
+
+    return fallbackValue;
+  }
+}
 
 function getAllowedRepoNames() {
-  try {
-    if (fs.existsSync(CONFIG_ALLOWLIST_PATH)) {
-      const raw = fs.readFileSync(CONFIG_ALLOWLIST_PATH, 'utf8');
-      const parsed = raw ? JSON.parse(raw) : null;
+  const parsed = parseJsonFile(CONFIG_ALLOWLIST_PATH, null);
 
-      let list = [];
-      if (Array.isArray(parsed)) {
-        list = parsed;
-      } else if (typeof parsed === 'string') {
-        list = parsed.split(',');
-      } else if (parsed && Array.isArray(parsed.allowlist)) {
-        list = parsed.allowlist;
-      } else if (parsed && typeof parsed.allowlist === 'string') {
-        list = parsed.allowlist.split(',');
-      }
+  if (parsed) {
+    let list = [];
 
-      const setFromFile = new Set(
-        list
-          .map((v) => String(v || '').trim().toLowerCase())
-          .filter(Boolean),
-      );
-
-      if (setFromFile.size > 0) {
-        return setFromFile;
-      }
+    if (Array.isArray(parsed)) {
+      list = parsed;
+    } else if (typeof parsed === 'string') {
+      list = parsed.split(',');
+    } else if (Array.isArray(parsed.allowlist)) {
+      list = parsed.allowlist;
+    } else if (typeof parsed.allowlist === 'string') {
+      list = parsed.allowlist.split(',');
     }
-  } catch (e) {
-    // ignore parse/read errors and fallback to env/default
+
+    const setFromFile = new Set(
+      list
+        .map((v) => String(v || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    if (setFromFile.size > 0) {
+      return setFromFile;
+    }
   }
 
   const configuredValue = typeof process.env.GITHUB_PROJECT_ALLOWLIST === 'string' ? process.env.GITHUB_PROJECT_ALLOWLIST : '';
@@ -52,22 +95,15 @@ function getAllowedRepoNames() {
 }
 
 function getRepoOverrides() {
-  try {
-    if (fs.existsSync(CONFIG_OVERRIDES_PATH)) {
-      const raw = fs.readFileSync(CONFIG_OVERRIDES_PATH, 'utf8');
-      const parsed = raw ? JSON.parse(raw) : null;
+  const parsed = parseJsonFile(CONFIG_OVERRIDES_PATH, null);
 
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        // normalize keys to lowercase repo names
-        const normalized = {};
-        for (const [k, v] of Object.entries(parsed)) {
-          normalized[String(k || '').toLowerCase()] = v;
-        }
-        return normalized;
-      }
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    // normalize keys to lowercase repo names
+    const normalized = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      normalized[String(k || '').toLowerCase()] = v;
     }
-  } catch (e) {
-    // ignore and return empty
+    return normalized;
   }
 
   return {};
@@ -175,6 +211,105 @@ function mapRepository(repo) {
   };
 }
 
+function createFallbackRepository(repoName) {
+  const normalizedName = String(repoName || '').toLowerCase();
+  const fallback = FALLBACK_REPOSITORIES[normalizedName] || {};
+
+  return {
+    id: `local-${normalizedName || 'repo'}`,
+    name: normalizedName,
+    description: fallback.description || 'GitHub repository',
+    language: fallback.language || '',
+    html_url: `https://github.com/nuwanakanadil/${normalizedName}`,
+    homepage: '',
+    stargazers_count: 0,
+    forks_count: 0,
+    updated_at: '',
+    created_at: '',
+    fork: false,
+    languages_url: '',
+  };
+}
+
+function createFallbackRepositories(allowedRepoNames) {
+  return Array.from(allowedRepoNames).map((repoName) => createFallbackRepository(repoName));
+}
+
+async function loadGitHubRepositories(headers, allowedRepoNames, hasGitHubToken) {
+  if (!hasGitHubToken) {
+    return createFallbackRepositories(allowedRepoNames);
+  }
+
+  const githubResponse = await fetch(GITHUB_REPOS_URL, {
+    headers,
+  });
+
+  const responseText = await githubResponse.text();
+  let data = [];
+
+  try {
+    data = responseText ? JSON.parse(responseText) : [];
+  } catch (error) {
+    if (error instanceof Error) {
+      data = [];
+    }
+  }
+
+  if (!githubResponse.ok) {
+    const errorMessage = data?.message || responseText || 'GitHub request failed.';
+    if (githubResponse.status === 403 || githubResponse.status === 429 || String(errorMessage).toLowerCase().includes('rate limit')) {
+      return createFallbackRepositories(allowedRepoNames);
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+async function buildRepositoryEntry(repo, headers, override) {
+  const mapped = mapRepository(repo);
+
+  if (!override || typeof override !== 'object') {
+    mapped.languagesUsed = await fetchRepoLanguages(repo.languages_url, headers, repo.language);
+    return mapped;
+  }
+
+  const merged = { ...mapped, ...override };
+
+  if (Array.isArray(mapped.techStack) || Array.isArray(override.techStack)) {
+    const left = Array.isArray(override.techStack) ? override.techStack : mapped.techStack || [];
+    merged.techStack = Array.from(new Set(left.concat(mapped.techStack || [])));
+  }
+
+  if (Array.isArray(override.images) && override.images.length > 0) {
+    merged.images = override.images;
+    merged.image = override.image || override.images[0];
+  } else if (Array.isArray(mapped.images) && mapped.images.length > 0) {
+    merged.images = mapped.images;
+    merged.image = override.image || mapped.image || mapped.images[0];
+  } else if (override.image) {
+    merged.image = override.image;
+  }
+
+  merged.languagesUsed = Array.isArray(override.languagesUsed) && override.languagesUsed.length > 0
+    ? override.languagesUsed
+    : await fetchRepoLanguages(repo.languages_url, headers, repo.language);
+
+  return merged;
+}
+
+async function buildRepositoryList(data, headers, allowedRepoNames, overrides, shouldIncludeForks) {
+  const repositories = Array.isArray(data)
+    ? data
+        .filter((repo) => (shouldIncludeForks ? true : !repo.fork))
+        .filter((repo) => allowedRepoNames.has(String(repo.name || '').toLowerCase()))
+        .map(async (repo) => buildRepositoryEntry(repo, headers, overrides[String(repo.name || '').toLowerCase()]))
+    : [];
+
+  return Promise.all(repositories);
+}
+
 function mapLanguages(languagesData, fallbackLanguage) {
   if (!languagesData || typeof languagesData !== 'object' || Array.isArray(languagesData)) {
     return fallbackLanguage ? [fallbackLanguage] : [];
@@ -225,78 +360,20 @@ async function handleGitHubProjectsRequest(request, response) {
     const includeForks = requestUrl.searchParams.get('includeForks');
     const shouldIncludeForks = includeForks === 'true' || includeForks === '1';
     const allowedRepoNames = getAllowedRepoNames();
+    const overrides = getRepoOverrides();
 
     const headers = {
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
     };
 
-    if (process.env.GITHUB_TOKEN) {
+    const hasGitHubToken = Boolean(process.env.GITHUB_TOKEN);
+    if (hasGitHubToken) {
       headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
     }
 
-    const githubResponse = await fetch(GITHUB_REPOS_URL, {
-      headers,
-    });
-
-    const responseText = await githubResponse.text();
-    let data = [];
-
-    try {
-      data = responseText ? JSON.parse(responseText) : [];
-    } catch {
-      data = [];
-    }
-
-    if (!githubResponse.ok) {
-      const errorMessage = data?.message || responseText || 'GitHub request failed.';
-      sendJson(response, githubResponse.status, { error: errorMessage });
-      return;
-    }
-
-    const overrides = getRepoOverrides();
-
-    const repositories = Array.isArray(data)
-      ? data
-          .filter((repo) => (shouldIncludeForks ? true : !repo.fork))
-          .filter((repo) => allowedRepoNames.has(String(repo.name || '').toLowerCase()))
-          .map(async (repo) => {
-            const mapped = mapRepository(repo);
-            const override = overrides[String(repo.name || '').toLowerCase()];
-
-            if (!override || typeof override !== 'object') {
-              mapped.languagesUsed = await fetchRepoLanguages(repo.languages_url, headers, repo.language);
-              return mapped;
-            }
-
-            // shallow merge: override fields take precedence
-            const merged = Object.assign({}, mapped, override);
-
-            // merge arrays sensibly: techStack and images
-            if (Array.isArray(mapped.techStack) || Array.isArray(override.techStack)) {
-              const left = Array.isArray(override.techStack) ? override.techStack : mapped.techStack || [];
-              merged.techStack = Array.from(new Set(left.concat(mapped.techStack || [])));
-            }
-
-            if (Array.isArray(override.images) && override.images.length > 0) {
-              merged.images = override.images;
-              merged.image = override.image || override.images[0];
-            } else if (Array.isArray(mapped.images) && mapped.images.length > 0) {
-              merged.images = mapped.images;
-              merged.image = override.image || mapped.image || mapped.images[0];
-            } else if (override.image) {
-              merged.image = override.image;
-            }
-
-            merged.languagesUsed = Array.isArray(override.languagesUsed) && override.languagesUsed.length > 0
-              ? override.languagesUsed
-              : await fetchRepoLanguages(repo.languages_url, headers, repo.language);
-
-            return merged;
-          })
-      : [];
-
-    const resolvedRepositories = await Promise.all(repositories);
+    const data = await loadGitHubRepositories(headers, allowedRepoNames, hasGitHubToken);
+    const resolvedRepositories = await buildRepositoryList(data, headers, allowedRepoNames, overrides, shouldIncludeForks);
 
     sendJson(response, 200, {
       projects: resolvedRepositories,

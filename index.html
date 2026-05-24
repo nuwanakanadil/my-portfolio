@@ -7,6 +7,46 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="shortcut icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        const forceTop = () => {
+          if ('scrollRestoration' in history) {
+            history.scrollRestoration = 'manual';
+          }
+
+          if (location.hash) {
+            history.replaceState(null, '', location.pathname + location.search);
+          }
+
+          window.scrollTo(0, 0);
+        };
+
+        const startGuard = () => {
+          let attempts = 0;
+          const guard = globalThis.setInterval(() => {
+            forceTop();
+            attempts += 1;
+
+            if (window.scrollY === 0 || attempts >= 20) {
+              globalThis.clearInterval(guard);
+            }
+          }, 50);
+        };
+
+        forceTop();
+        document.addEventListener('DOMContentLoaded', forceTop, { once: true });
+        window.addEventListener('load', forceTop, { once: true });
+        window.addEventListener('pageshow', () => {
+          forceTop();
+          startGuard();
+        });
+        requestAnimationFrame(() => {
+          requestAnimationFrame(forceTop);
+        });
+        setTimeout(forceTop, 0);
+        startGuard();
+      })();
+    </script>
     <title>Nuwanaka Nadil-Portfolio</title>
   </head>
   <body>
